@@ -139,7 +139,8 @@
 <%= text_f f, :password,
            {
                :label    => _('Password'),
-               :required => true
+               :required => true,
+               :help_inline => _('To login to the vm via sshkeys, you can leave password blank and add host paramter called remote_execution_ssh_keys')
            }
 %>
 

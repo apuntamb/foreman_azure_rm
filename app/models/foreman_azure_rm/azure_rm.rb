@@ -10,7 +10,11 @@ module ForemanAzureRM
     validates :url, :presence => true
     validates :uuid, :presence => true
 
+    has_one :key_pair, :foreign_key => :compute_resource_id, :dependent => :destroy
+
     before_create :test_connection
+
+    before_create :setup_key_pair
 
     class VMContainer
       attr_accessor :virtualmachines
@@ -216,12 +220,16 @@ module ForemanAzureRM
     def create_vm(args = {})
       args[:vm_name] = args[:name].split('.')[0]
       nics           = create_nics(args)
-      if args[:ssh_key_data].present?
-        disable_password_auth = true
-        ssh_key_path          = "/home/#{args[:username]}/.ssh/authorized_keys"
+      ssh_key_path   = "/home/#{args[:username]}/.ssh/authorized_keys"
+      disable_password_auth = true
+
+      if args[:ssh_key_data].present? && !args[:password].present?
+        args[:script_command] = "echo #{args[:ssh_key_data]} >> #{ssh_key_path}"
+      elsif args[:password].present? && !args[:ssh_key_data].present?
+        disable_password_auth = false
+        args[:script_command] = "$echo #{args[:password]} | sudo -S echo '\"#{args[:username]}\" ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/waagent"
       else
         disable_password_auth = false
-        ssh_key_path          = nil
       end
       vm                       = client.create_managed_virtual_machine(
           name:                            args[:vm_name],
@@ -230,7 +238,7 @@ module ForemanAzureRM
           vm_size:                         args[:vm_size],
           username:                        args[:username],
           password:                        args[:password],
-          ssh_key_data:                    args[:ssh_key_data],
+          ssh_key_data:                    key_pair.public,
           ssh_key_path:                    ssh_key_path,
           disable_password_authentication: disable_password_auth,
           network_interface_card_ids:      nics.map(&:id),
@@ -240,6 +248,7 @@ module ForemanAzureRM
           data_disks:                      args[:volumes_attributes],
           os_disk_size:                    args[:os_disk_size],
           premium_os_disk:                 args[:premium_os_disk],
+          custom_data:                     args[:user_data]
       )
       vm_hash                  = Fog::Compute::AzureRM::Server.parse(vm)
       vm_hash[:password]       = args[:password]
@@ -254,6 +263,10 @@ module ForemanAzureRM
       Foreman::Logging.exception('Unhandled Azure RM error', e)
       destroy_vm vm.id if vm
       raise e
+    end
+
+    def user_data_supported?
+      true
     end
 
     def destroy_vm(uuid)
@@ -328,6 +341,13 @@ module ForemanAzureRM
           :subscription_id => sub_id,
           :environment     => 'AzureCloud'
       )
+    end
+
+    def setup_key_pair
+      require 'sshkey'
+      name = "foreman-#{id}#{Foreman.uuid}"
+      key  = ::SSHKey.generate
+      build_key_pair :name => name, :secret => key.private_key, :public => key.ssh_public_key
     end
   end
 end
