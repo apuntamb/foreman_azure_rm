@@ -1,40 +1,64 @@
 module ForemanAzureRm
   class AzureSdkAdapter
-    def initialize(tenant, app_ident, secret_key, sub_id)
+    def initialize(tenant, app_ident, secret_key, sub_id, gov_cloud)
       @tenant           = tenant
       @app_ident        = app_ident
       @secret_key       = secret_key
       @sub_id           = sub_id
+      @gov_cloud        = gov_cloud
+    end
+
+    def resource_endpoint
+      binding.pry
+      if @gov_cloud
+        MsRestAzure::AzureEnvironments::AzureUSGovernment.resource_manager_endpoint_url
+      else
+        MsRestAzure::AzureEnvironments::AzureCloud.resource_manager_endpoint_url
+      end
     end
 
     def resource_client
-      @resource_client ||= Resources::Client.new(azure_credentials)
+      # binding.pry
+      @resource_client ||= Azure::Resources::Mgmt::V2019_07_01::ResourceManagementClient.new(azure_credentials(@gov_cloud), resource_endpoint)
+      @resource_client.subscription_id = @sub_id
+      @resource_client
     end
 
     def compute_client
-      @compute_client ||= Compute::Client.new(azure_credentials)
+      @compute_client ||= Azure::Resources::Mgmt::V2019_07_01::ComputeManagementClient.new(azure_credentials(@gov_cloud), resource_endpoint)
+      @compute_client.subscription_id = @sub_id
+      @compute_client
     end
 
     def network_client
-      @network_client ||= Network::Client.new(azure_credentials)
+      @network_client ||= Azure::Resources::Mgmt::V2019_07_01::NetworkManagementClient.new(azure_credentials(@gov_cloud), resource_endpoint)
+      @network_client.subscription_id = @sub_id
+      @network_client
     end
 
     def storage_client
-      @storage_client ||= Storage::Client.new(azure_credentials)
+      @storage_client ||= Azure::Resources::Mgmt::V2019_07_01::StorageManagementClient.new(azure_credentials(@gov_cloud), resource_endpoint)
+      @storage_client.subscription_id = @sub_id
+      @storage_client
     end
 
-    def azure_credentials
-      provider = MsRestAzure::ApplicationTokenProvider.new(
-      @tenant,
-      @app_ident,
-      @secret_key)
-      
-      credentials = MsRest::TokenCredentials.new(provider)
+    def settings_for_azure_env(environment)
+      if environment == "AzureUSGovernment"
+        MsRestAzure::ActiveDirectoryServiceSettings.get_azure_us_government_settings
+      else
+        MsRestAzure::ActiveDirectoryServiceSettings.get_azure_settings
+      end
+    end
 
-      {
-        credentials: credentials,
-        subscription_id: @sub_id
-      }
+    def azure_credentials(gov_cloud = nil)
+      binding.pry
+      if gov_cloud
+        environment = "AzureUSGovernment"
+      else
+        environment = "AzureCloud"
+      end
+      provider = MsRestAzure::ApplicationTokenProvider.new(@tenant, @app_ident, @secret_key, settings_for_azure_env(environment))
+      credentials = MsRest::TokenCredentials.new(provider)
     end
 
     def rgs

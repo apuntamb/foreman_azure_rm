@@ -1,7 +1,12 @@
 <%= text_f f, :app_ident, :label => _('Client ID'), :required => true %>
+
 <%= password_f f, :password, :label => _('Client Secret'), :keep_value => true, :required => true %>
+
 <%= text_f f, :user, :label => _('Subscription ID'), :required => true %>
+
 <%= text_f f, :uuid, :label => _('Tenant ID'), :required => true %>
+
+<%= checkbox_f f, :gov_cloud, :label_help => 'Azure GovCloud (US) is an isolated Azure region designed for U.S. government agencies<br>addressing their specific regulatory and compliance requirements.<br><br>If you want to use GovCloud region, check this. For all other regions, keep this unchecked.' %>
 
 <%= selectable_f(f, :url, f.object.class.regions, {}, {:label => _('Azure Region'), :label_help => _("Some of the listed regions might not be supported for your subscription. Please verify on Azure portal."), :required => true }) %>
 

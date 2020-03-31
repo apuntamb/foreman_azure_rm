@@ -40,7 +40,7 @@ module ForemanAzureRm
     end
 
     def sdk
-      @sdk ||= ForemanAzureRm::AzureSdkAdapter.new(tenant, app_ident, secret_key, sub_id)
+      @sdk ||= ForemanAzureRm::AzureSdkAdapter.new(tenant, app_ident, secret_key, sub_id, gov_cloud)
     end
     
     def to_label
@@ -112,6 +112,22 @@ module ForemanAzureRm
 
     validates :region, inclusion: { in: regions.collect(&:second),
     message: "%{value} must be lowercase eg. 'eastus'. No special characters allowed." }
+
+    def self.gov_cloud_regions
+      [
+        ['US DoD Central', 'usdodcentral'],
+        ['US Gov Arizona', 'usgovarizona'],
+        ['US Gov Texas', 'usgovtexas']
+      ]
+    end
+
+    def gov_cloud
+      false
+    end
+
+    def gov_cloud=(enable_gov_cloud)
+      self.region = 'usdodcentral' if gov_cloud
+    end
 
     def resource_groups
       sdk.rgs
